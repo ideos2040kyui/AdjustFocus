@@ -40,7 +40,21 @@ public class ObjectRenderer : MonoBehaviour
         }
     }
     
-    // 外部からピントずれ値を受け取って画像を更新
+    void Update()
+    {
+        // テスト用：スペースキーを押すと強制的に分離を大きくする
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            Debug.Log("テスト: 最大分離で画像を生成");
+            UpdateCompositeImage(1.0f);  // 最大分離
+        }
+        
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            Debug.Log("テスト: 分離なしで画像を生成");
+            UpdateCompositeImage(0.0f);  // 分離なし
+        }
+    }
     public void UpdateCompositeImage(float separationRatio)
     {
         Debug.Log($"UpdateCompositeImage 呼び出し: separationRatio = {separationRatio}");
@@ -103,6 +117,10 @@ public class ObjectRenderer : MonoBehaviour
         int compositeWidth = readableSource.width * 2 + Mathf.RoundToInt(separation);
         int compositeHeight = readableSource.height;
         
+        Debug.Log($"元画像サイズ: {readableSource.width} x {readableSource.height}");
+        Debug.Log($"間隔: {separation} ピクセル");
+        Debug.Log($"合成画像サイズ: {compositeWidth} x {compositeHeight}");
+        
         // 新しいテクスチャを作成
         Texture2D composite = new Texture2D(compositeWidth, compositeHeight, TextureFormat.RGBA32, false);
         
@@ -118,18 +136,20 @@ public class ObjectRenderer : MonoBehaviour
         Color[] sourcePixels = readableSource.GetPixels();
         
         // 左側のオブジェクトを配置
+        Debug.Log("左側オブジェクトを配置中...");
         for (int y = 0; y < readableSource.height; y++)
         {
             for (int x = 0; x < readableSource.width; x++)
             {
                 int sourceIndex = y * readableSource.width + x;
-                int leftIndex = y * compositeWidth + x;
                 composite.SetPixel(x, y, sourcePixels[sourceIndex]);
             }
         }
         
         // 右側のオブジェクトを配置
         int rightStartX = readableSource.width + Mathf.RoundToInt(separation);
+        Debug.Log($"右側オブジェクトを配置中... 開始X座標: {rightStartX}");
+        
         for (int y = 0; y < readableSource.height; y++)
         {
             for (int x = 0; x < readableSource.width; x++)
@@ -150,6 +170,7 @@ public class ObjectRenderer : MonoBehaviour
             DestroyImmediate(readableSource);
         }
         
+        Debug.Log("合成画像作成完了");
         return composite;
     }
     
