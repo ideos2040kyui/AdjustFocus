@@ -5,8 +5,7 @@ using UnityEngine.Rendering.Universal;
 public class GameSystem : MonoBehaviour
 {
     [Header("ゲーム設定")]
-    public Transform apple1; // 左のりんご
-    public Transform apple2; // 右のりんご
+    public ObjectRenderer objectRenderer; // オブジェクトレンダラー
     public float focusRange = 2f; // ピント調整の範囲
     public int targetFocus = 50; // 正解のピント値（0-100）
     public float keepTime = 5f; // クリアに必要な維持時間
@@ -14,7 +13,6 @@ public class GameSystem : MonoBehaviour
     [Header("ピント設定")]
     public int currentFocus = 50; // 現在のピント値（0-100）
     public float smoothSpeed = 5f; // マウスストーカーの追従速度
-    public float separationDistance = 5f; // りんご間の距離
     
     [Header("Depth of Field設定")]
     public Volume globalVolume; // Global Volumeの参照
@@ -25,8 +23,6 @@ public class GameSystem : MonoBehaviour
     private DepthOfField depthOfField;
     private float targetFocusDistance; // 目標のフォーカス距離
     
-    private Vector3 originalApple1Pos;
-    private Vector3 originalApple2Pos;
     private float correctFocusTime = 0f; // 正解ピントを維持している時間
     private bool gameCleared = false;
     
@@ -35,13 +31,6 @@ public class GameSystem : MonoBehaviour
     
     void Start()
     {
-        // りんごの初期位置を記憶
-        if (apple1 != null && apple2 != null)
-        {
-            originalApple1Pos = apple1.position;
-            originalApple2Pos = apple2.position;
-        }
-        
         // Depth of Fieldの設定
         SetupDepthOfField();
         
@@ -62,8 +51,8 @@ public class GameSystem : MonoBehaviour
         // マウス位置からピント値を計算（マウスストーカー風）
         UpdateFocusFromMouse();
         
-        // ピントに応じてりんごの位置とぼかしを更新
-        UpdateApplePositions();
+        // ピントに応じてオブジェクトの画像を更新
+        UpdateObjectImage();
         
         // Depth of Fieldを更新
         UpdateDepthOfField();
@@ -101,22 +90,15 @@ public class GameSystem : MonoBehaviour
         currentFocus = Mathf.Clamp(currentFocus, 0, 100);
     }
     
-    void UpdateApplePositions()
+    void UpdateObjectImage()
     {
-        if (apple1 == null || apple2 == null) return;
+        if (objectRenderer == null) return;
         
-        // ピントのずれ量を計算（0が完全、100が最大ずれ）
+        // ピントのずれ量を計算（0が完全、1が最大ずれ）
         float focusError = Mathf.Abs(currentFocus - targetFocus) / 100f;
         
-        // ピントずれに応じて左右のりんごを離す（二重に見える表現）
-        float separation = focusError * separationDistance;
-        
-        // 2D用：X軸のみで左右に分離、Z軸は0固定
-        Vector3 leftOffset = new Vector3(-separation, 0, 0);
-        Vector3 rightOffset = new Vector3(separation, 0, 0);
-        
-        apple1.position = originalApple1Pos + leftOffset;
-        apple2.position = originalApple2Pos + rightOffset;
+        // ObjectRendererに分離率を送信
+        objectRenderer.UpdateCompositeImage(focusError);
     }
     
     void SetupDepthOfField()
@@ -179,11 +161,10 @@ public class GameSystem : MonoBehaviour
         gameCleared = true;
         Debug.Log("ゲームクリア！おめでとうございます！");
         
-        // クリア時の効果（りんごを元の位置に戻す）
-        if (apple1 != null && apple2 != null)
+        // クリア時の効果（画像を正常状態に戻す）
+        if (objectRenderer != null)
         {
-            apple1.position = originalApple1Pos;
-            apple2.position = originalApple2Pos;
+            objectRenderer.UpdateCompositeImage(0f);
         }
     }
     
