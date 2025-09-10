@@ -1,0 +1,206 @@
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+public class GameSystem : MonoBehaviour
+{
+    [Header("ゲーム設定")]
+    public Transform apple1; // 左のりんご
+    public Transform apple2; // 右のりんご
+    public float focusRange = 2f; // ピント調整の範囲
+    public int targetFocus = 50; // 正解のピント値（0-100）
+    public float keepTime = 5f; // クリアに必要な維持時間
+    
+    [Header("ピント設定")]
+    public int currentFocus = 50; // 現在のピント値（0-100）
+    public float smoothSpeed = 5f; // マウスストーカーの追従速度
+    public float separationDistance = 5f; // りんご間の距離
+    
+    [Header("Depth of Field設定")]
+    public Volume globalVolume; // Global Volumeの参照
+    public float minFocusDistance = 0.1f; // 最小フォーカス距離
+    public float maxFocusDistance = 75f; // 最大フォーカス距離
+    public bool useDepthOfField = true; // Depth of Fieldを使用するか
+    
+    private DepthOfField depthOfField;
+    private float targetFocusDistance; // 目標のフォーカス距離
+    
+    private Vector3 originalApple1Pos;
+    private Vector3 originalApple2Pos;
+    private float correctFocusTime = 0f; // 正解ピントを維持している時間
+    private bool gameCleared = false;
+    
+    // ピント誤差範囲
+    private int focusTolerance = 3;
+    
+    void Start()
+    {
+        // りんごの初期位置を記憶
+        if (apple1 != null && apple2 != null)
+        {
+            originalApple1Pos = apple1.position;
+            originalApple2Pos = apple2.position;
+        }
+        
+        // Depth of Fieldの設定
+        SetupDepthOfField();
+        
+        // 目標フォーカス距離を計算（線形山形曲線で）
+        float normalizedTarget = targetFocus / 100f; // 0-1に正規化
+        float targetCurve = 1f - 2f * Mathf.Abs(normalizedTarget - 0.5f); // 線形の山形
+        targetFocusDistance = Mathf.Lerp(minFocusDistance, maxFocusDistance, targetCurve);
+        
+        Debug.Log("ゲーム開始！マウスを上下に動かしてピントを合わせよう！");
+        Debug.Log($"目標ピント値: {targetFocus} (±{focusTolerance})");
+        Debug.Log($"目標フォーカス距離: {targetFocusDistance:F1}");
+    }
+    
+    void Update()
+    {
+        if (gameCleared) return;
+        
+        // マウス位置からピント値を計算（マウスストーカー風）
+        UpdateFocusFromMouse();
+        
+        // ピントに応じてりんごの位置とぼかしを更新
+        UpdateApplePositions();
+        
+        // Depth of Fieldを更新
+        UpdateDepthOfField();
+        
+        // クリア判定
+        CheckClearCondition();
+        
+        // デバッグ表示
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            float currentFocusDistance = depthOfField != null ? depthOfField.focusDistance.value : 0f;
+            
+            // 山型曲線の詳細計算も表示
+            float normalizedFocus = currentFocus / 100f;
+            float curve = 1f - 4f * (normalizedFocus - 0.5f) * (normalizedFocus - 0.5f);
+            float calculatedDistance = Mathf.Lerp(minFocusDistance, maxFocusDistance, curve);
+            
+            Debug.Log($"現在のピント: {currentFocus} / 目標: {targetFocus} / 維持時間: {correctFocusTime:F1}秒");
+            Debug.Log($"現在のフォーカス距離: {currentFocusDistance:F2} / 目標: {targetFocusDistance:F2}");
+            Debug.Log($"計算詳細: normalized={normalizedFocus:F3}, curve={curve:F3}, calculated={calculatedDistance:F2}");
+            Debug.Log($"Min/Max設定: {minFocusDistance}/{maxFocusDistance}");
+        }
+    }
+    
+    void UpdateFocusFromMouse()
+    {
+        // マウスのY座標を0-100のピント値に変換
+        float mouseY = Input.mousePosition.y;
+        float screenHeight = Screen.height;
+        int targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
+        targetFocusFromMouse = Mathf.Clamp(targetFocusFromMouse, 0, 100);
+        
+        // スムーズに追従
+        currentFocus = Mathf.RoundToInt(Mathf.Lerp(currentFocus, targetFocusFromMouse, smoothSpeed * Time.deltaTime));
+        currentFocus = Mathf.Clamp(currentFocus, 0, 100);
+    }
+    
+    void UpdateApplePositions()
+    {
+        if (apple1 == null || apple2 == null) return;
+        
+        // ピントのずれ量を計算（0が完全、100が最大ずれ）
+        float focusError = Mathf.Abs(currentFocus - targetFocus) / 100f;
+        
+        // ピントずれに応じて左右のりんごを離す（二重に見える表現）
+        float separation = focusError * separationDistance;
+        
+        // 2D用：X軸のみで左右に分離、Z軸は0固定
+        Vector3 leftOffset = new Vector3(-separation, 0, 0);
+        Vector3 rightOffset = new Vector3(separation, 0, 0);
+        
+        apple1.position = originalApple1Pos + leftOffset;
+        apple2.position = originalApple2Pos + rightOffset;
+    }
+    
+    void SetupDepthOfField()
+    {
+        if (globalVolume != null && useDepthOfField)
+        {
+            // Global VolumeからDepth of Fieldコンポーネントを取得
+            if (globalVolume.profile.TryGet<DepthOfField>(out depthOfField))
+            {
+                depthOfField.active = true;
+                Debug.Log("Depth of Field設定完了");
+            }
+            else
+            {
+                Debug.LogWarning("Global VolumeにDepth of Fieldが見つかりません");
+            }
+        }
+    }
+    
+    void UpdateDepthOfField()
+    {
+        if (depthOfField != null && useDepthOfField)
+        {
+            // 線形の山形曲線 - ピント値0,100で最小、ピント値50で最大
+            float normalizedFocus = currentFocus / 100f; // 0-1に正規化
+            
+            // 線形の山形（三角形）
+            float curve = 1f - 2f * Mathf.Abs(normalizedFocus - 0.5f); // 0.5で1、端で0
+            
+            // Focus Distanceを計算
+            float currentFocusDistance = Mathf.Lerp(minFocusDistance, maxFocusDistance, curve);
+            
+            // Focus Distanceを更新
+            depthOfField.focusDistance.value = currentFocusDistance;
+        }
+    }
+    
+    void CheckClearCondition()
+    {
+        // 正解ピント範囲内かチェック
+        bool isCorrectFocus = Mathf.Abs(currentFocus - targetFocus) <= focusTolerance;
+        
+        if (isCorrectFocus)
+        {
+            correctFocusTime += Time.deltaTime;
+            
+            if (correctFocusTime >= keepTime)
+            {
+                GameClear();
+            }
+        }
+        else
+        {
+            correctFocusTime = 0f; // リセット
+        }
+    }
+    
+    void GameClear()
+    {
+        gameCleared = true;
+        Debug.Log("ゲームクリア！おめでとうございます！");
+        
+        // クリア時の効果（りんごを元の位置に戻す）
+        if (apple1 != null && apple2 != null)
+        {
+            apple1.position = originalApple1Pos;
+            apple2.position = originalApple2Pos;
+        }
+    }
+    
+    void OnGUI()
+    {
+        // UI表示
+        GUI.Box(new Rect(10, 10, 200, 100), "");
+        GUI.Label(new Rect(20, 20, 180, 20), $"ピント: {currentFocus}/100");
+        GUI.Label(new Rect(20, 40, 180, 20), $"目標: {targetFocus}±{focusTolerance}");
+        GUI.Label(new Rect(20, 60, 180, 20), $"維持時間: {correctFocusTime:F1}/{keepTime}秒");
+        
+        if (gameCleared)
+        {
+            GUI.Box(new Rect(Screen.width / 2 - 100, Screen.height / 2 - 25, 200, 50), "");
+            GUI.Label(new Rect(Screen.width / 2 - 80, Screen.height / 2 - 10, 160, 20), "ゲームクリア！");
+        }
+        
+        GUI.Label(new Rect(10, Screen.height - 40, 300, 20), "SPACEキー: デバッグ情報表示");
+    }
+}
