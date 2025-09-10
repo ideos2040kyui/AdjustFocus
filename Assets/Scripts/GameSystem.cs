@@ -1,6 +1,4 @@
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 public class GameSystem : MonoBehaviour
 {
@@ -14,34 +12,41 @@ public class GameSystem : MonoBehaviour
     public int currentFocus = 50; // 現在のピント値（0-100）
     public float smoothSpeed = 5f; // マウスストーカーの追従速度
     
-    [Header("Depth of Field設定")]
-    public Volume globalVolume; // Global Volumeの参照
-    public float minFocusDistance = 0.1f; // 最小フォーカス距離
-    public float maxFocusDistance = 75f; // 最大フォーカス距離
-    public bool useDepthOfField = true; // Depth of Fieldを使用するか
+    [Header("パフォーマンス設定")]
+    public float updateInterval = 0.2f; // 画像更新間隔（秒）- 中間値
+    public int focusChangeThreshold = 3; // 更新する最小ピント変化量 - 中間値
+    public bool enableImageProcessing = true; // 画像処理のON/OFF
     
-    private DepthOfField depthOfField;
-    private float targetFocusDistance; // 目標のフォーカス距離
+    [Header("FPS表示設定")]
+    public bool showFPS = true; // FPS表示のON/OFF
+    public float fpsUpdateInterval = 0.5f; // FPS更新間隔（秒）
     
     private float correctFocusTime = 0f; // 正解ピントを維持している時間
     private bool gameCleared = false;
+    private float lastUpdateTime = 0f; // 最後に更新した時間
+    private int lastFocus = 50; // 前回のピント値
+    
+    // FPS計測用
+    private float fps = 0f;
+    private float lastFPSUpdateTime = 0f;
+    private int frameCount = 0;
     
     // ピント誤差範囲
     private int focusTolerance = 3;
     
     void Start()
-    {
-        // Depth of Fieldの設定
-        SetupDepthOfField();
-        
-        // 目標フォーカス距離を計算（線形山形曲線で）
-        float normalizedTarget = targetFocus / 100f; // 0-1に正規化
-        float targetCurve = 1f - 2f * Mathf.Abs(normalizedTarget - 0.5f); // 線形の山形
-        targetFocusDistance = Mathf.Lerp(minFocusDistance, maxFocusDistance, targetCurve);
-        
+    {        
         Debug.Log("ゲーム開始！マウスを上下に動かしてピントを合わせよう！");
         Debug.Log($"目標ピント値: {targetFocus} (±{focusTolerance})");
-        Debug.Log($"目標フォーカス距離: {targetFocusDistance:F1}");
+        
+        // 初期状態の画像を生成
+        lastFocus = currentFocus;
+        lastUpdateTime = Time.time;
+        UpdateObjectImage();
+        
+        // FPS計測初期化
+        lastFPSUpdateTime = Time.time;
+        frameCount = 0;
     }
     
     void Update()
@@ -51,11 +56,11 @@ public class GameSystem : MonoBehaviour
         // マウス位置からピント値を計算（マウスストーカー風）
         UpdateFocusFromMouse();
         
-        // ピントに応じてオブジェクトの画像を更新
-        UpdateObjectImage();
+        // 条件を満たした場合のみオブジェクトの画像を更新
+        UpdateObjectImageConditional();
         
-        // Depth of Fieldを更新
-        UpdateDepthOfField();
+        // FPS計測
+        UpdateFPS();
         
         // クリア判定
         CheckClearCondition();
@@ -63,17 +68,17 @@ public class GameSystem : MonoBehaviour
         // デバッグ表示
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            float currentFocusDistance = depthOfField != null ? depthOfField.focusDistance.value : 0f;
-            
-            // 山型曲線の詳細計算も表示
-            float normalizedFocus = currentFocus / 100f;
-            float curve = 1f - 4f * (normalizedFocus - 0.5f) * (normalizedFocus - 0.5f);
-            float calculatedDistance = Mathf.Lerp(minFocusDistance, maxFocusDistance, curve);
-            
             Debug.Log($"現在のピント: {currentFocus} / 目標: {targetFocus} / 維持時間: {correctFocusTime:F1}秒");
-            Debug.Log($"現在のフォーカス距離: {currentFocusDistance:F2} / 目標: {targetFocusDistance:F2}");
-            Debug.Log($"計算詳細: normalized={normalizedFocus:F3}, curve={curve:F3}, calculated={calculatedDistance:F2}");
-            Debug.Log($"Min/Max設定: {minFocusDistance}/{maxFocusDistance}");
+            Debug.Log($"FPS: {fps:F1} / 更新間隔: {updateInterval}秒 / 変化閾値: {focusChangeThreshold}");
+            Debug.Log($"最終更新からの時間: {Time.time - lastUpdateTime:F2}秒");
+        }
+        
+        // テスト用：完全一致状態を強制作成
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            currentFocus = targetFocus;
+            Debug.Log($"強制的にピント一致: currentFocus = targetFocus = {targetFocus}");
+            UpdateObjectImage(); // 即座に更新
         }
     }
     
@@ -90,6 +95,26 @@ public class GameSystem : MonoBehaviour
         currentFocus = Mathf.Clamp(currentFocus, 0, 100);
     }
     
+    void UpdateObjectImageConditional()
+    {
+        if (objectRenderer == null || !enableImageProcessing) return;
+        
+        // 時間による更新制限
+        bool timeCondition = Time.time - lastUpdateTime >= updateInterval;
+        
+        // ピント変化による更新条件
+        bool focusChangeCondition = Mathf.Abs(currentFocus - lastFocus) >= focusChangeThreshold;
+        
+        // いずれかの条件を満たした場合のみ更新
+        if (timeCondition || focusChangeCondition)
+        {
+            Debug.Log($"画像更新実行 - Time: {timeCondition}, Focus: {focusChangeCondition}, FPS: {fps:F1}");
+            UpdateObjectImage();
+            lastUpdateTime = Time.time;
+            lastFocus = currentFocus;
+        }
+    }
+    
     void UpdateObjectImage()
     {
         if (objectRenderer == null) return;
@@ -97,42 +122,22 @@ public class GameSystem : MonoBehaviour
         // ピントのずれ量を計算（0が完全、1が最大ずれ）
         float focusError = Mathf.Abs(currentFocus - targetFocus) / 100f;
         
+        // デバッグ情報
+        Debug.Log($"ピント計算: currentFocus={currentFocus}, targetFocus={targetFocus}, focusError={focusError:F3}");
+        
         // ObjectRendererに分離率を送信
         objectRenderer.UpdateCompositeImage(focusError);
     }
     
-    void SetupDepthOfField()
+    void UpdateFPS()
     {
-        if (globalVolume != null && useDepthOfField)
+        frameCount++;
+        
+        if (Time.time - lastFPSUpdateTime >= fpsUpdateInterval)
         {
-            // Global VolumeからDepth of Fieldコンポーネントを取得
-            if (globalVolume.profile.TryGet<DepthOfField>(out depthOfField))
-            {
-                depthOfField.active = true;
-                Debug.Log("Depth of Field設定完了");
-            }
-            else
-            {
-                Debug.LogWarning("Global VolumeにDepth of Fieldが見つかりません");
-            }
-        }
-    }
-    
-    void UpdateDepthOfField()
-    {
-        if (depthOfField != null && useDepthOfField)
-        {
-            // 線形の山形曲線 - ピント値0,100で最小、ピント値50で最大
-            float normalizedFocus = currentFocus / 100f; // 0-1に正規化
-            
-            // 線形の山形（三角形）
-            float curve = 1f - 2f * Mathf.Abs(normalizedFocus - 0.5f); // 0.5で1、端で0
-            
-            // Focus Distanceを計算
-            float currentFocusDistance = Mathf.Lerp(minFocusDistance, maxFocusDistance, curve);
-            
-            // Focus Distanceを更新
-            depthOfField.focusDistance.value = currentFocusDistance;
+            fps = frameCount / (Time.time - lastFPSUpdateTime);
+            frameCount = 0;
+            lastFPSUpdateTime = Time.time;
         }
     }
     
@@ -170,11 +175,35 @@ public class GameSystem : MonoBehaviour
     
     void OnGUI()
     {
-        // UI表示
-        GUI.Box(new Rect(10, 10, 200, 100), "");
-        GUI.Label(new Rect(20, 20, 180, 20), $"ピント: {currentFocus}/100");
-        GUI.Label(new Rect(20, 40, 180, 20), $"目標: {targetFocus}±{focusTolerance}");
-        GUI.Label(new Rect(20, 60, 180, 20), $"維持時間: {correctFocusTime:F1}/{keepTime}秒");
+        // FPS表示
+        if (showFPS)
+        {
+            // FPS背景
+            GUI.Box(new Rect(10, 10, 120, 25), "");
+            
+            // FPS値の色を決定
+            GUIStyle fpsStyle = new GUIStyle(GUI.skin.label);
+            if (fps >= 60)
+                fpsStyle.normal.textColor = Color.green;
+            else if (fps >= 30)
+                fpsStyle.normal.textColor = Color.yellow;
+            else
+                fpsStyle.normal.textColor = Color.red;
+            
+            GUI.Label(new Rect(15, 15, 110, 20), $"FPS: {fps:F1}", fpsStyle);
+        }
+        
+        // ゲーム情報表示
+        int yOffset = showFPS ? 45 : 10;
+        GUI.Box(new Rect(10, yOffset, 200, 120), "");
+        GUI.Label(new Rect(20, yOffset + 10, 180, 20), $"ピント: {currentFocus}/100");
+        GUI.Label(new Rect(20, yOffset + 30, 180, 20), $"目標: {targetFocus}±{focusTolerance}");
+        GUI.Label(new Rect(20, yOffset + 50, 180, 20), $"維持時間: {correctFocusTime:F1}/{keepTime}秒");
+        
+        // ピントずれ情報を追加
+        float currentFocusError = Mathf.Abs(currentFocus - targetFocus) / 100f;
+        GUI.Label(new Rect(20, yOffset + 70, 180, 20), $"ずれ量: {currentFocusError:F3}");
+        GUI.Label(new Rect(20, yOffset + 90, 180, 20), $"分離率: {currentFocusError:F1}%");
         
         if (gameCleared)
         {
@@ -182,6 +211,10 @@ public class GameSystem : MonoBehaviour
             GUI.Label(new Rect(Screen.width / 2 - 80, Screen.height / 2 - 10, 160, 20), "ゲームクリア！");
         }
         
-        GUI.Label(new Rect(10, Screen.height - 40, 300, 20), "SPACEキー: デバッグ情報表示");
+        // 操作説明
+        int instructionY = Screen.height - 80;
+        GUI.Label(new Rect(10, instructionY, 400, 20), "SPACEキー: デバッグ情報表示");
+        GUI.Label(new Rect(10, instructionY + 20, 400, 20), "Pキー: 強制ピント一致テスト");
+        GUI.Label(new Rect(10, instructionY + 40, 400, 20), "T/Rキー: テスト用分離調整");
     }
 }
