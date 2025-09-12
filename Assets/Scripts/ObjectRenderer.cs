@@ -16,7 +16,7 @@ public class ObjectRenderer : MonoBehaviour
     public BlendMode blendMode = BlendMode.Additive; // 重ね合わせモード
     
     [Header("ブラー設定")]
-    public int blurRadius = 2; // ブラーの強度（軽量化のため小さく）
+    public int blurRadiusBase = 2; // ブラーの強度（軽量化のため小さく）
     public bool useFastBlur = true; // 高速ブラーを使用
     
     [Header("最適化設定")]
@@ -104,6 +104,8 @@ public class ObjectRenderer : MonoBehaviour
         
         // ブラー処理（オプション）
         Texture2D finalTexture = compositeTexture;
+        // 分離率×基準値を四捨五入し、0〜blurRadiusBaseにクランプ
+        int blurRadius = Mathf.Clamp(Mathf.RoundToInt(separationRatio * blurRadiusBase), 0, blurRadiusBase);
         if (enableBlur && blurRadius > 0)
         {
             if (useFastBlur)
