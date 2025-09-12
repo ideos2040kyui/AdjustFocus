@@ -13,7 +13,7 @@ public class ObjectRenderer : MonoBehaviour
     public float maxSeparationDistance = 100f; // 最大間隔（ピクセル）- 調整可能
 
     [Header("重ね合わせ設定")]
-    public BlendMode blendMode = BlendMode.Additive; // 重ね合わせモード
+    public BlendMode blendMode = BlendMode.Alpha; // 重ね合わせモード
 
     [Header("ブラー設定")]
     public int blurRadiusBase = 2; // ブラーの強度（軽量化のため小さく）

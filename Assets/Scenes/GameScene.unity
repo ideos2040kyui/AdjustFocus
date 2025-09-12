@@ -371,15 +371,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   objectRenderer: {fileID: 1274273795}
   focusRange: 2
-  targetFocus: 50
+  goalFocus: 50
   keepTime: 5
+  targetFocusDeltaConstant: 5
+  focusSpeedConstant: 1
   currentFocus: 50
-  smoothSpeed: 10
+  targetFocus: 50
   updateInterval: 0.1
   focusChangeThreshold: 2
   enableImageProcessing: 1
   showFPS: 1
   fpsUpdateInterval: 0.5
+  correctFocusTime: 0
 --- !u!4 &854701622
 Transform:
   m_ObjectHideFlags: 0
@@ -495,11 +498,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd7667e47d277014f8cd70448ede10f7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sourceImage: {fileID: 2800000, guid: e043928fea2a342448d5dd78d7d3c61d, type: 3}
+  sourceImage: {fileID: 2800000, guid: e82c5c7c690adc94996b017ad3097c20, type: 3}
   targetRenderer: {fileID: 1274273793}
-  maxSeparationDistance: 200
+  maxSeparationDistance: 600
   blendMode: 0
-  blurRadius: 5
+  blurRadiusBase: 150
   useFastBlur: 1
   enableBlur: 1
   maxImageSize: 512
