@@ -10,16 +10,14 @@ public class GameSystem : MonoBehaviour
 
     [Header("ピント設定")]
     [SerializeField]
-    private float targetFocusDeltaConstant = 100; // 移動目標値の変化の割合
+    private float targetFocusDeltaConstant = 200f; // 移動目標値の変化の割合
     [SerializeField]
-    private float focusSpeedConstant = 100; // 現在ピント値の変化の割合
+    private float focusSpeedConstant = 0.1f; // 現在ピント値の変化の割合
     [SerializeField]
     private float currentFocus = 50; // 現在のピント値（0-100）
     [SerializeField]
     private float targetFocus = 50; // 移動目標のピント値（0-100)
-    [SerializeField]
-    private float smoothSpeed = 5f; // マウスストーカーの追従速度
-    
+        
     [Header("パフォーマンス設定")]
     public float updateInterval = 0.2f; // 画像更新間隔（秒）- 中間値
     public int focusChangeThreshold = 3; // 更新する最小ピント変化量 - 中間値
@@ -99,7 +97,9 @@ public class GameSystem : MonoBehaviour
         // 
         float dy = Input.GetAxis("Mouse Y");
         float targetFocusDelta = dy * targetFocusDeltaConstant;
-        targetFocus = currentFocus + targetFocusDelta;
+        targetFocus += targetFocusDelta;
+        targetFocus = Mathf.Clamp(targetFocus, 0, 100);
+
         // targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
         // float mouseY = Input.mousePosition.y;
         // float screenHeight = Screen.height;
@@ -132,7 +132,7 @@ public class GameSystem : MonoBehaviour
         //     }
         // }
 
-        currentFocus = currentFocus + CalculateCurrentFocusSpeed() * Time.deltaTime; 
+        currentFocus += CalculateCurrentFocusSpeed() * Time.deltaTime; 
         currentFocus = Mathf.Clamp(currentFocus, 0, 100);
     }
     
