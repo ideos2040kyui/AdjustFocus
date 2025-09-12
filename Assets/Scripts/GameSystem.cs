@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 
 public class GameSystem : MonoBehaviour
@@ -6,17 +7,17 @@ public class GameSystem : MonoBehaviour
     public ObjectRenderer objectRenderer; // オブジェクトレンダラー
     public float focusRange = 2f; // ピント調整の範囲
     public int goalFocus = 50; // 正解のピント値（0-100）
-    public float keepTime = 5f; // クリアに必要な維持時間
+    public float keepTime = 2f; // クリアに必要な維持時間
 
     [Header("ピント設定")]
     [SerializeField]
-    private float targetFocusDeltaConstant = 5f; // 移動目標値の変化の割合
+    private float targetFocusDeltaConstant = 100f; // 移動目標値の変化の割合
     [SerializeField]
     private float focusSpeedConstant = 1f; // 現在ピント値の変化の割合
     [SerializeField]
-    private float currentFocus = 50; // 現在のピント値（0-100）
+    private float currentFocus = 20; // 現在のピント値（0-100）
     [SerializeField]
-    private float targetFocus = 50; // 移動目標のピント値（0-100)
+    private float targetFocus = 20; // 移動目標のピント値（0-100)
         
     [Header("パフォーマンス設定")]
     public float updateInterval = 0.2f; // 画像更新間隔（秒）- 中間値
@@ -39,13 +40,18 @@ public class GameSystem : MonoBehaviour
     private int frameCount = 0;
     
     // ピント誤差範囲
-    private int focusTolerance = 3;
+    private int focusTolerance = 1;
+
+    [SerializeField]
+    private GameObject gameClearText; // オブジェクトレンダラー
     
     void Start()
     {        
         Debug.Log("ゲーム開始！マウスを上下に動かしてピントを合わせよう！");
         Debug.Log($"目標ピント値: {goalFocus} (±{focusTolerance})");
-        
+
+        gameClearText.SetActive(false);
+
         // 初期状態の画像を生成
         lastFocus = currentFocus;
         lastUpdateTime = Time.time;
@@ -97,7 +103,7 @@ public class GameSystem : MonoBehaviour
         float dy = Input.GetAxis("Mouse Y");
         float targetFocusDelta = dy * targetFocusDeltaConstant;
         targetFocus += targetFocusDelta;
-        // targetFocus = Mathf.Clamp(targetFocus, 0, 100);
+        targetFocus = Mathf.Clamp(targetFocus, 0, 100);
     }
 
     private float CalculateCurrentFocusSpeed()
@@ -180,8 +186,9 @@ public class GameSystem : MonoBehaviour
     void GameClear()
     {
         gameCleared = true;
-        Debug.Log("ゲームクリア！おめでとうございます！");
-        
+        Debug.Log("GAME CLEAR！Congraturations！");
+        gameClearText.SetActive(true);
+
         // クリア時の効果（画像を正常状態に戻す）
         if (objectRenderer != null)
         {
@@ -191,46 +198,45 @@ public class GameSystem : MonoBehaviour
     
     void OnGUI()
     {
-        // FPS表示
-        if (showFPS)
-        {
-            // FPS背景
-            GUI.Box(new Rect(10, 10, 120, 25), "");
+        // // FPS表示
+        // if (showFPS)
+        // {
+        //     // FPS背景
+        //     GUI.Box(new Rect(10, 10, 120, 25), "");
             
-            // FPS値の色を決定
-            GUIStyle fpsStyle = new GUIStyle(GUI.skin.label);
-            if (fps >= 60)
-                fpsStyle.normal.textColor = Color.green;
-            else if (fps >= 30)
-                fpsStyle.normal.textColor = Color.yellow;
-            else
-                fpsStyle.normal.textColor = Color.red;
+        //     // FPS値の色を決定
+        //     GUIStyle fpsStyle = new GUIStyle(GUI.skin.label);
+        //     if (fps >= 60)
+        //         fpsStyle.normal.textColor = Color.green;
+        //     else if (fps >= 30)
+        //         fpsStyle.normal.textColor = Color.yellow;
+        //     else
+        //         fpsStyle.normal.textColor = Color.red;
             
-            GUI.Label(new Rect(15, 15, 110, 20), $"FPS: {fps:F1}", fpsStyle);
-        }
+        //     GUI.Label(new Rect(15, 15, 110, 20), $"FPS: {fps:F1}", fpsStyle);
+        // }
         
-        // ゲーム情報表示
-        int yOffset = showFPS ? 45 : 10;
-        GUI.Box(new Rect(10, yOffset, 200, 120), "");
-        GUI.Label(new Rect(20, yOffset + 10, 180, 20), $"ピント: {currentFocus}/100");
-        GUI.Label(new Rect(20, yOffset + 30, 180, 20), $"目標: {goalFocus}±{focusTolerance}");
-        GUI.Label(new Rect(20, yOffset + 50, 180, 20), $"維持時間: {correctFocusTime:F1}/{keepTime}秒");
+        // // ゲーム情報表示
+        // int yOffset = showFPS ? 45 : 10;
+        // GUI.Box(new Rect(10, yOffset, 200, 120), "");
+        // GUI.Label(new Rect(20, yOffset + 10, 180, 20), $"ピント: {currentFocus}/100");
+        // GUI.Label(new Rect(20, yOffset + 30, 180, 20), $"目標: {goalFocus}±{focusTolerance}");
+        // GUI.Label(new Rect(20, yOffset + 50, 180, 20), $"維持時間: {correctFocusTime:F1}/{keepTime}秒");
         
-        // ピントずれ情報を追加
-        float currentFocusError = Mathf.Abs(currentFocus - goalFocus) / 100f;
-        GUI.Label(new Rect(20, yOffset + 70, 180, 20), $"ずれ量: {currentFocusError:F3}");
-        GUI.Label(new Rect(20, yOffset + 90, 180, 20), $"分離率: {currentFocusError:F1}%");
+        // // ピントずれ情報を追加
+        // float currentFocusError = Mathf.Abs(currentFocus - goalFocus) / 100f;
+        // GUI.Label(new Rect(20, yOffset + 70, 180, 20), $"ずれ量: {currentFocusError:F3}");
+        // GUI.Label(new Rect(20, yOffset + 90, 180, 20), $"分離率: {currentFocusError:F1}%");
         
         if (gameCleared)
         {
-            GUI.Box(new Rect(Screen.width / 2 - 100, Screen.height / 2 - 25, 200, 50), "");
-            GUI.Label(new Rect(Screen.width / 2 - 80, Screen.height / 2 - 10, 160, 20), "ゲームクリア！");
+            // GUI.Label(new Rect(Screen.width / 2, Screen.height / 2 - 10, 160, 160), "FOCUS!");
         }
         
-        // 操作説明
-        int instructionY = Screen.height - 80;
-        GUI.Label(new Rect(10, instructionY, 400, 20), "SPACEキー: デバッグ情報表示");
-        GUI.Label(new Rect(10, instructionY + 20, 400, 20), "Pキー: 強制ピント一致テスト");
-        GUI.Label(new Rect(10, instructionY + 40, 400, 20), "T/Rキー: テスト用分離調整");
+        // // 操作説明
+        // int instructionY = Screen.height - 80;
+        // GUI.Label(new Rect(10, instructionY, 400, 20), "SPACE key: デバッグ情報表示");
+        // GUI.Label(new Rect(10, instructionY + 20, 400, 20), "P key: 強制ピント一致テスト");
+        // GUI.Label(new Rect(10, instructionY + 40, 400, 20), "T/R key: テスト用分離調整");
     }
 }
