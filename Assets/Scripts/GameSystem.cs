@@ -5,12 +5,20 @@ public class GameSystem : MonoBehaviour
     [Header("ゲーム設定")]
     public ObjectRenderer objectRenderer; // オブジェクトレンダラー
     public float focusRange = 2f; // ピント調整の範囲
-    public int targetFocus = 50; // 正解のピント値（0-100）
+    public int goalFocus = 50; // 正解のピント値（0-100）
     public float keepTime = 5f; // クリアに必要な維持時間
-    
+
     [Header("ピント設定")]
-    public int currentFocus = 50; // 現在のピント値（0-100）
-    public float smoothSpeed = 5f; // マウスストーカーの追従速度
+    [SerializeField]
+    private float targetFocusDeltaConstant = 100; // 移動目標値の変化の割合
+    [SerializeField]
+    private float focusSpeedConstant = 100; // 現在ピント値の変化の割合
+    [SerializeField]
+    private float currentFocus = 50; // 現在のピント値（0-100）
+    [SerializeField]
+    private float targetFocus = 50; // 移動目標のピント値（0-100)
+    [SerializeField]
+    private float smoothSpeed = 5f; // マウスストーカーの追従速度
     
     [Header("パフォーマンス設定")]
     public float updateInterval = 0.2f; // 画像更新間隔（秒）- 中間値
@@ -21,10 +29,11 @@ public class GameSystem : MonoBehaviour
     public bool showFPS = true; // FPS表示のON/OFF
     public float fpsUpdateInterval = 0.5f; // FPS更新間隔（秒）
     
+    [SerializeField]
     private float correctFocusTime = 0f; // 正解ピントを維持している時間
     private bool gameCleared = false;
     private float lastUpdateTime = 0f; // 最後に更新した時間
-    private int lastFocus = 50; // 前回のピント値
+    private float lastFocus = 50; // 前回のピント値
     
     // FPS計測用
     private float fps = 0f;
@@ -37,7 +46,7 @@ public class GameSystem : MonoBehaviour
     void Start()
     {        
         Debug.Log("ゲーム開始！マウスを上下に動かしてピントを合わせよう！");
-        Debug.Log($"目標ピント値: {targetFocus} (±{focusTolerance})");
+        Debug.Log($"目標ピント値: {goalFocus} (±{focusTolerance})");
         
         // 初期状態の画像を生成
         lastFocus = currentFocus;
@@ -53,9 +62,12 @@ public class GameSystem : MonoBehaviour
     {
         if (gameCleared) return;
         
-        // マウス位置からピント値を計算（マウスストーカー風）
-        UpdateFocusFromMouse();
-        
+        // マウス位置から移動目標ピント値を計算
+        UpdateTargetFocusFromMouse();
+
+        // 移動目標ピント値から現在のピント値を計算
+        UpdateCurrentFocus();
+
         // 条件を満たした場合のみオブジェクトの画像を更新
         UpdateObjectImageConditional();
         
@@ -68,7 +80,7 @@ public class GameSystem : MonoBehaviour
         // デバッグ表示
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            Debug.Log($"現在のピント: {currentFocus} / 目標: {targetFocus} / 維持時間: {correctFocusTime:F1}秒");
+            Debug.Log($"現在のピント: {currentFocus} / 目標: {goalFocus} / 維持時間: {correctFocusTime:F1}秒");
             Debug.Log($"FPS: {fps:F1} / 更新間隔: {updateInterval}秒 / 変化閾値: {focusChangeThreshold}");
             Debug.Log($"最終更新からの時間: {Time.time - lastUpdateTime:F2}秒");
         }
@@ -76,22 +88,51 @@ public class GameSystem : MonoBehaviour
         // テスト用：完全一致状態を強制作成
         if (Input.GetKeyDown(KeyCode.P))
         {
-            currentFocus = targetFocus;
-            Debug.Log($"強制的にピント一致: currentFocus = targetFocus = {targetFocus}");
+            currentFocus = goalFocus;
+            Debug.Log($"強制的にピント一致: currentFocus = targetFocus = {goalFocus}");
             UpdateObjectImage(); // 即座に更新
         }
     }
-    
-    void UpdateFocusFromMouse()
+
+    void UpdateTargetFocusFromMouse()
     {
-        // マウスのY座標を0-100のピント値に変換
-        float mouseY = Input.mousePosition.y;
-        float screenHeight = Screen.height;
-        int targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
-        targetFocusFromMouse = Mathf.Clamp(targetFocusFromMouse, 0, 100);
-        
+        // 
+        float dy = Input.GetAxis("Mouse Y");
+        float targetFocusDelta = dy * targetFocusDeltaConstant;
+        targetFocus = currentFocus + targetFocusDelta;
+        // targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
+        // float mouseY = Input.mousePosition.y;
+        // float screenHeight = Screen.height;
+        // int targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
+        // targetFocusFromMouse = Mathf.Clamp(targetFocusFromMouse, 0, 100);
+    }
+
+    private float CalculateCurrentFocusSpeed()
+    {
+        return focusSpeedConstant * (targetFocus - currentFocus);
+    }
+
+    void UpdateCurrentFocus()
+    {
         // スムーズに追従
-        currentFocus = Mathf.RoundToInt(Mathf.Lerp(currentFocus, targetFocusFromMouse, smoothSpeed * Time.deltaTime));
+        // if ((targetFocus - currentFocus) > 0)
+        // {
+        //     currentFocus += smoothSpeed;
+        //     if ((targetFocus - currentFocus) < 0)
+        //     {
+        //         currentFocus = targetFocus;
+        //     }
+        // }
+        // else
+        // {
+        //     currentFocus -= smoothSpeed;
+        //     if ((targetFocus - currentFocus) > 0)
+        //     {
+        //         currentFocus = targetFocus;
+        //     }
+        // }
+
+        currentFocus = currentFocus + CalculateCurrentFocusSpeed() * Time.deltaTime; 
         currentFocus = Mathf.Clamp(currentFocus, 0, 100);
     }
     
@@ -120,10 +161,10 @@ public class GameSystem : MonoBehaviour
         if (objectRenderer == null) return;
         
         // ピントのずれ量を計算（0が完全、1が最大ずれ）
-        float focusError = Mathf.Abs(currentFocus - targetFocus) / 100f;
+        float focusError = Mathf.Abs(currentFocus - goalFocus) / 100f;
         
         // デバッグ情報
-        Debug.Log($"ピント計算: currentFocus={currentFocus}, targetFocus={targetFocus}, focusError={focusError:F3}");
+        Debug.Log($"ピント計算: currentFocus={currentFocus}, targetFocus={goalFocus}, focusError={focusError:F3}");
         
         // ObjectRendererに分離率を送信
         objectRenderer.UpdateCompositeImage(focusError);
@@ -144,7 +185,7 @@ public class GameSystem : MonoBehaviour
     void CheckClearCondition()
     {
         // 正解ピント範囲内かチェック
-        bool isCorrectFocus = Mathf.Abs(currentFocus - targetFocus) <= focusTolerance;
+        bool isCorrectFocus = Mathf.Abs(currentFocus - goalFocus) <= focusTolerance;
         
         if (isCorrectFocus)
         {
@@ -197,11 +238,11 @@ public class GameSystem : MonoBehaviour
         int yOffset = showFPS ? 45 : 10;
         GUI.Box(new Rect(10, yOffset, 200, 120), "");
         GUI.Label(new Rect(20, yOffset + 10, 180, 20), $"ピント: {currentFocus}/100");
-        GUI.Label(new Rect(20, yOffset + 30, 180, 20), $"目標: {targetFocus}±{focusTolerance}");
+        GUI.Label(new Rect(20, yOffset + 30, 180, 20), $"目標: {goalFocus}±{focusTolerance}");
         GUI.Label(new Rect(20, yOffset + 50, 180, 20), $"維持時間: {correctFocusTime:F1}/{keepTime}秒");
         
         // ピントずれ情報を追加
-        float currentFocusError = Mathf.Abs(currentFocus - targetFocus) / 100f;
+        float currentFocusError = Mathf.Abs(currentFocus - goalFocus) / 100f;
         GUI.Label(new Rect(20, yOffset + 70, 180, 20), $"ずれ量: {currentFocusError:F3}");
         GUI.Label(new Rect(20, yOffset + 90, 180, 20), $"分離率: {currentFocusError:F1}%");
         
