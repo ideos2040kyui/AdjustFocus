@@ -10,9 +10,9 @@ public class GameSystem : MonoBehaviour
 
     [Header("ピント設定")]
     [SerializeField]
-    private float targetFocusDeltaConstant = 200f; // 移動目標値の変化の割合
+    private float targetFocusDeltaConstant = 5f; // 移動目標値の変化の割合
     [SerializeField]
-    private float focusSpeedConstant = 0.1f; // 現在ピント値の変化の割合
+    private float focusSpeedConstant = 1f; // 現在ピント値の変化の割合
     [SerializeField]
     private float currentFocus = 50; // 現在のピント値（0-100）
     [SerializeField]
@@ -94,17 +94,10 @@ public class GameSystem : MonoBehaviour
 
     void UpdateTargetFocusFromMouse()
     {
-        // 
         float dy = Input.GetAxis("Mouse Y");
         float targetFocusDelta = dy * targetFocusDeltaConstant;
         targetFocus += targetFocusDelta;
-        targetFocus = Mathf.Clamp(targetFocus, 0, 100);
-
-        // targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
-        // float mouseY = Input.mousePosition.y;
-        // float screenHeight = Screen.height;
-        // int targetFocusFromMouse = Mathf.RoundToInt((mouseY / screenHeight) * 100f);
-        // targetFocusFromMouse = Mathf.Clamp(targetFocusFromMouse, 0, 100);
+        // targetFocus = Mathf.Clamp(targetFocus, 0, 100);
     }
 
     private float CalculateCurrentFocusSpeed()
@@ -114,24 +107,6 @@ public class GameSystem : MonoBehaviour
 
     void UpdateCurrentFocus()
     {
-        // スムーズに追従
-        // if ((targetFocus - currentFocus) > 0)
-        // {
-        //     currentFocus += smoothSpeed;
-        //     if ((targetFocus - currentFocus) < 0)
-        //     {
-        //         currentFocus = targetFocus;
-        //     }
-        // }
-        // else
-        // {
-        //     currentFocus -= smoothSpeed;
-        //     if ((targetFocus - currentFocus) > 0)
-        //     {
-        //         currentFocus = targetFocus;
-        //     }
-        // }
-
         currentFocus += CalculateCurrentFocusSpeed() * Time.deltaTime; 
         currentFocus = Mathf.Clamp(currentFocus, 0, 100);
     }
